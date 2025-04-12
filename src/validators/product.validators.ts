@@ -19,7 +19,6 @@ export const productUsesSchema = z.nativeEnum(ProductUses);
 
 // Product Schema
 export const ProductSchema = z.object({
-  id: z.string().uuid(),
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
   price: z.number().positive("Price must be a positive number"),
