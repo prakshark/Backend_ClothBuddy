@@ -1,9 +1,33 @@
 import { z } from "zod";
-import { ProductCategory, ProductStatus } from "@prisma/client";
+
+// Define enums manually
+export enum ProductCategory {
+  MENS = "MENS",
+  WOMENS = "WOMENS",
+  KIDS = "KIDS",
+  OTHER = "OTHER",
+}
+
+export enum ProductStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+}
+
+export enum ProductUses {
+  CASUAL = "CASUAL",
+  DATES = "DATES",
+  PARTIES = "PARTIES",
+  OFFICE = "OFFICE",
+  TRAVEL = "TRAVEL",
+  SPORTS = "SPORTS",
+  FORMALS = "FORMALS",
+}
 
 // Enum Validators
 export const productCategorySchema = z.nativeEnum(ProductCategory);
 export const productStatusSchema = z.nativeEnum(ProductStatus);
+export const productUsesSchema = z.nativeEnum(ProductUses);
 
 // Product Schema
 export const ProductSchema = z.object({
@@ -16,9 +40,10 @@ export const ProductSchema = z.object({
   stock: z.number().int().min(0, "Stock cannot be negative"),
   status: productStatusSchema.default(ProductStatus.PENDING),
   sellerId: z.string().uuid(),
+  productUses: z.array(productUsesSchema).default([]),
   bulkUpload: z.string().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 // ProductDetails Schema
@@ -132,8 +157,10 @@ export const reviewSchema = z.object({
 export const querySchema = z.object({
   page: z.string().optional(),
   limit: z.string().optional(),
-  category: z.nativeEnum(ProductCategory).optional(),
-  status: z.nativeEnum(ProductStatus).optional(),
+  category: z
+    .enum([ProductCategory.MENS, ProductCategory.WOMENS, ProductCategory.KIDS, ProductCategory.OTHER])
+    .optional(),
+  status: z.enum([ProductStatus.PENDING, ProductStatus.APPROVED, ProductStatus.REJECTED]).optional(),
 });
 
 export type Product = z.infer<typeof ProductSchema>;
