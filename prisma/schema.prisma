@@ -80,7 +80,7 @@ model Buyer {
 }
 
 model Seller {
-  id   String @id @default(uuid()) @map("userId")
+  id   String @id @default(uuid()) 
   sellerId String @unique
   user User  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
@@ -92,14 +92,13 @@ model Seller {
   isVerified  Boolean @default(false) 
 
   // Relations
-  products Product[]
+  products Product[] @relation("SellerProducts")
   reviews Review[]
   orders Order[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([id]) 
 }
 
 model PasswordResetToken {
@@ -147,7 +146,7 @@ model Product {
   productUses ProductUses[]    @default([])
 
   sellerId    String
-  seller      Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  seller      Seller           @relation("SellerProducts",fields: [sellerId], references: [id], onDelete: Cascade)
   details     ProductDetails?
   variants    ProductVariant[]
   images      ProductImage[]

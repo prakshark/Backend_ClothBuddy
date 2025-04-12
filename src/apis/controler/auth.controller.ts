@@ -13,13 +13,21 @@ const REFRESH_TOKEN_KEY = process.env.REFRESH_TOKEN_SECRET as string;
 
 const prisma = new PrismaClient();
 
-// generate access Token which will be store in memory
-
-const generateAccessToken = (user: { id: string; email: string; role: string }) => {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_KEY, { expiresIn: "1h" });
+const generateAccessToken = (user: {
+  id: string;
+  email: string;
+  role: string;
+  sellerId: string;
+  isVerified: boolean;
+}) => {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role, sellerId: user.id, isVerified: user.isVerified },
+    JWT_KEY,
+    {
+      expiresIn: "1h",
+    }
+  );
 };
-
-// generateRefresh token which will bw stored in db
 
 const generateRefreshToken = (user: { id: string; email: string }) => {
   return jwt.sign({ id: user.id, email: user.email }, REFRESH_TOKEN_KEY, { expiresIn: "7d" });
@@ -149,7 +157,7 @@ const registerUser: RequestHandler = async (req: Request, res: Response): Promis
     const user = await prisma.user.create({ data: { email, password: hashedPassword, name, role } });
 
     // Generate tokens
-    const accessToken = generateAccessToken(user);
+    const accessToken = generateAccessToken({ ...user, sellerId: user.role === "SELLER" ? user.id : "" });
     const refreshToken = generateRefreshToken(user);
 
     // Save refresh token in the database
@@ -193,7 +201,10 @@ const signinUser: RequestHandler = async (req: Request, res: Response): Promise<
     }
 
     // Generate tokens
-    const accessToken = generateAccessToken(user);
+    const accessToken = generateAccessToken({
+      ...user,
+      sellerId: user.role === "SELLER" ? user.id : "",
+    });
     const refreshToken = generateRefreshToken(user);
 
     // Save refresh token in the database
@@ -241,6 +252,8 @@ const refreshToken: RequestHandler = async (req: Request, res: Response): Promis
       id: decodedToken.id,
       email: decodedToken.email,
       role: decodedToken.role,
+      isVerified: decodedToken.isVerified,
+      sellerId: decodedToken.sellerId,
     });
 
     res.status(200).json({ message: "Token refreshed successfully", token: newAccessToken });

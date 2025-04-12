@@ -8,7 +8,7 @@ export const buildProductFilter = (user: JwtPayload, category?: string, status?:
   if (status) where.status = status as ProductStatus;
 
   if (user.role === "SELLER") {
-    where.sellerId = user.id;
+    where.sellerId = user.sellerId;
   } else if (user.role !== "ADMIN") {
     return null; // Unauthorized
   }

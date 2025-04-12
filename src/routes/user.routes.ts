@@ -36,8 +36,6 @@ import {
 
 const userRouter = Router();
 
-// manual auth routes
-// Route to create an admin (Run once)
 userRouter.post("/create-admin", createAdmin);
 userRouter.post("/admin-signin", adminSignIn);
 

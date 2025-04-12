@@ -12,18 +12,24 @@ export const validate = (schema: ZodSchema<unknown>) => {
       res.status(400).json({ error: parsed.error.format() });
       return;
     }
-    req.body = parsed.data; // Ensure parsed data is available
+    req.body = parsed.data;
     next();
   };
 };
 
 export const validateUUID = (paramName: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    console.log(`🔍 UUID Validation Middleware Triggered for Param: ${paramName}`);
+    console.log(`➡️ Received Param Value:`, req.params[paramName]);
+
     const parsed = uuidSchema.safeParse(req.params[paramName]);
     if (!parsed.success) {
+      console.log(`❌ Invalid UUID detected for param: ${paramName}`);
       res.status(400).json({ error: "Invalid UUID format" });
       return;
     }
+
+    console.log(`✅ Valid UUID:`, req.params[paramName]);
     next();
   };
 };

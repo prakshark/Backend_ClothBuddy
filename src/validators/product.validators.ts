@@ -31,6 +31,7 @@ export const ProductSchema = z.object({
   bulkUpload: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  bulkUpload: z.string().optional(),
 });
 
 // ProductDetails Schema

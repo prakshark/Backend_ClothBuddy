@@ -7,19 +7,43 @@ import { z } from "zod";
 import { buildProductFilter } from "../../utils/product.filter";
 
 const prisma = new PrismaClient();
-const ProductStatusEnum = z.enum(["PENDING", "APPROVED", "REJECTED"]);
+// const ProductStatusEnum = z.enum(["PENDING", "APPROVED", "REJECTED"]);
 
 const addProduct: RequestHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = req.user as JwtPayload;
 
+    if (!user?.id) {
+      res.status(401).json({ error: "Unauthorized: User ID missing" });
+      return;
+    }
+
+    // ✅ Find seller using user.id
+    const existingSeller = await prisma.seller.findUnique({
+      where: { sellerId: user.id },
+    });
+
+    console.log("Decoded Token:", user);
+    console.log("Searching Seller by User ID:", user.id);
+
+    if (!existingSeller) {
+      console.error("Seller not found in database:", user.id);
+      res.status(400).json({ error: "Seller does not exist" });
+      return;
+    }
+    console.log("Fetched Seller:", existingSeller);
+
+    // ✅ Use `existingSeller.id` for product creation
     const addedProduct = await prisma.product.create({
       data: {
         ...req.body,
         status: "PENDING",
-        sellerId: user.id,
+        sellerId: existingSeller.id, // 🛠️ Fix: Use Seller's `id`
       },
     });
+
+    console.log("Seller ID used for product creation:", existingSeller.id);
+    console.log("Product added successfully:", addedProduct);
 
     res.status(201).json({ message: "Product added successfully", data: addedProduct });
   } catch (error) {
@@ -28,6 +52,9 @@ const addProduct: RequestHandler = async (req: Request, res: Response): Promise<
     if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         res.status(400).json({ error: "A product with this title already exists." });
+        return;
+      } else if (error.code === "P2003") {
+        res.status(400).json({ error: "Invalid sellerId: Seller does not exist." });
         return;
       }
     }
@@ -41,20 +68,62 @@ const deleteProductById: RequestHandler = async (req: Request, res: Response): P
     const user = req.user as JwtPayload;
     const { productId } = req.params;
 
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    console.log("Product ID from Params:", productId);
+
+    // ✅ Validate productId format (UUID)
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(productId)) {
+      res.status(400).json({ error: "Invalid product ID format" });
+      return;
+    }
+
+    // ✅ Ensure user is authenticated
+    if (!user || !user.id || !user.role) {
+      console.log("Unauthorized: User not authenticated");
+      res.status(401).json({ error: "Unauthorized: User not authenticated" });
+      return;
+    }
+
+    // ✅ Fetch the seller using user.sellerId
+    const existingSeller = await prisma.seller.findUnique({
+      where: { sellerId: user.id },
+    });
+
+    if (!existingSeller) {
+      console.log("No seller found for this user");
+      res.status(403).json({ error: "Unauthorized: Not a registered seller" });
+      return;
+    }
+
+    console.log("Seller ID:", existingSeller.sellerId);
+
+    // ✅ Find the product in the database
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, sellerId: true },
+    });
 
     if (!product) {
+      console.log("Product not found in DB");
       res.status(404).json({ error: "Product not found" });
       return;
     }
 
-    if (user.role !== "ADMIN" && product.sellerId !== user.id) {
-      res.status(403).json({ error: "Unauthorized: You cannot delete this product" });
+    console.log("Product Found in DB:", product);
+    console.log("User Role:", user.role);
+    console.log("Product Seller ID:", product.sellerId);
+
+    // ✅ Authorization check: Only Admin or Product's Seller can delete
+    if (user.role !== "ADMIN" || product.sellerId !== existingSeller.id) {
+      console.log("Authorization Failed: User is not Admin or Product Owner");
+      res.status(403).json({ error: "Forbidden: You cannot delete this product" });
       return;
     }
 
+    // ✅ Delete the product
     await prisma.product.delete({ where: { id: productId } });
 
+    console.log("Product deleted successfully:", productId);
     res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
     console.error("Error deleting product:", error);
@@ -67,30 +136,57 @@ const updateProductById: RequestHandler = async (req: Request, res: Response): P
     const user = req.user as JwtPayload;
     const { productId } = req.params;
 
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    console.log("Incoming User ID:", user.id);
+    console.log("Incoming User Role:", user.role);
+
+    // ✅ Validate UUID format
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(productId)) {
+      res.status(400).json({ error: "Invalid product ID format" });
+      return;
+    }
+
+    // ✅ Find product in DB
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, sellerId: true },
+    });
 
     if (!product) {
       res.status(404).json({ error: "Product not found" });
       return;
     }
 
-    if (user.role !== "ADMIN" && product.sellerId !== user.id) {
-      res.status(403).json({ error: "Unauthorized: You cannot update this product" });
+    console.log("Product Seller ID:", product.sellerId);
+
+    // ✅ Fetch seller using user.sellerId
+    const existingSeller = await prisma.seller.findUnique({
+      where: { sellerId: user.id },
+    });
+
+    if (!existingSeller) {
+      res.status(403).json({ error: "Unauthorized: You are not a seller" });
       return;
     }
 
-    const updateData = req.body;
+    console.log("User Role:", user.role);
+    console.log("Found Seller ID:", existingSeller.id);
 
-    // Only Admin can update `status`
-    if (user.role === "ADMIN" && req.body.status) {
-      const statusValidation = ProductStatusEnum.safeParse(req.body.status);
-      if (!statusValidation.success) {
-        res.status(400).json({ error: "Invalid status value" });
-        return;
-      }
-      updateData.status = statusValidation.data as ProductStatus;
+    if (!product || product.sellerId !== existingSeller.id) {
+      res.status(403).json({ message: "Unauthorized to update this product." });
+      return;
     }
 
+    // ✅ Validate and filter update fields
+    const parsedData = ProductSchema.partial().safeParse(req.body);
+    if (!parsedData.success) {
+      res.status(400).json({ error: parsedData.error.format() });
+      return;
+    }
+
+    const updateData = parsedData.data;
+
+    // ✅ Update product
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
       data: updateData,
@@ -105,21 +201,23 @@ const updateProductById: RequestHandler = async (req: Request, res: Response): P
 
 const getAllProducts: RequestHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const user = req.user as JwtPayload; // Extracted from middleware
+    const user = req.user as JwtPayload;
     const { page, limit, category, status } = req.query as Record<string, string>;
 
-    const pageNumber = Math.max(Number(page) || 1, 1);
-    const limitNumber = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    //  Ensure valid pagination values
+    const pageNumber = !Number.isNaN(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+    const limitNumber = !Number.isNaN(Number(limit)) && Number(limit) > 0 ? Math.min(Number(limit), 100) : 10;
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Construct product filter based on user role
+    // ✅ Construct product filter
     const where = buildProductFilter(user, category, status);
+    console.log("Product filter:", where);
     if (!where) {
       res.status(403).json({ error: "Unauthorized: You cannot view products" });
       return;
     }
 
-    // Fetch products and total count in a single query
+    // ✅ Fetch products & total count using Prisma transactions
     const [products, totalProducts] = await prisma.$transaction([
       prisma.product.findMany({
         where,
@@ -142,8 +240,11 @@ const getAllProducts: RequestHandler = async (req: Request, res: Response): Prom
       prisma.product.count({ where }),
     ]);
 
+    console.log("Total products found:", totalProducts);
+
     res.status(200).json({
       message: "Products fetched successfully",
+      products,
       count: products.length,
       totalProducts,
       currentPage: pageNumber,
@@ -185,7 +286,7 @@ const getProductById: RequestHandler = async (req: Request, res: Response): Prom
 
     const user = req.user as JwtPayload;
 
-    if (user.role !== "ADMIN" && product.sellerId !== user.id) {
+    if (user.role !== "ADMIN" || product.sellerId !== user.id) {
       res.status(403).json({ error: "Unauthorized: You cannot view this product" });
       return;
     }
@@ -214,7 +315,7 @@ const getProductBySellerId: RequestHandler = async (req: Request, res: Response)
 
     const user = req.user as JwtPayload;
 
-    if (user.role !== "ADMIN" && user.id !== seller.sellerId) {
+    if (user.role !== "ADMIN" || user.id !== seller.sellerId) {
       res.status(403).json({ error: "Unauthorized: You cannot access these products" });
       return;
     }
@@ -250,24 +351,38 @@ const getProductBySellerId: RequestHandler = async (req: Request, res: Response)
 
 const getProductByCategory: RequestHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category } = req.query;
     const user = req.user as JwtPayload;
+    const { category } = req.query;
+    console.log("User Verified Status:", user?.isVerified);
+    console.log("Requested Category:", category);
 
-    // Ensure user is verified before allowing access
-    if (!user.isVerified) {
+    // ✅ Ensure user is authenticated & verified
+    if (!user || !user.isVerified) {
       res.status(403).json({ error: "Unauthorized: User not verified" });
       return;
     }
 
-    // Validate category
-    if (!Object.values(ProductCategory).includes(category as ProductCategory)) {
+    // ✅ Check if `category` is provided
+    if (!category || typeof category !== "string") {
+      res.status(400).json({ error: "Category is required" });
+      return;
+    }
+
+    // ✅ Normalize category (uppercase & trim)
+    const normalizedCategory = category.trim().toUpperCase();
+
+    // ✅ Ensure `ProductCategory` enum exists and matches
+    if (!(normalizedCategory in ProductCategory)) {
       res.status(400).json({ error: "Invalid category provided" });
       return;
     }
 
-    // Fetch products by category
+    // ✅ Fetch only APPROVED products
     const products = await prisma.product.findMany({
-      where: { category: category as ProductCategory },
+      where: {
+        category: normalizedCategory as ProductCategory,
+        status: "APPROVED",
+      },
       select: {
         id: true,
         title: true,
@@ -276,14 +391,19 @@ const getProductByCategory: RequestHandler = async (req: Request, res: Response)
         discount: true,
         category: true,
         stock: true,
-        status: true,
+        details: true, // ✅ Include details
+        variants: true, // ✅ Include variants
+        specifications: true, // ✅ Include specifications
+        images: true, // ✅ Include images
         createdAt: true,
         updatedAt: true,
       },
     });
 
+    console.log(`Fetched ${products.length} products for category:`, normalizedCategory);
+
     res.status(200).json({
-      message: "All products fetched successfully",
+      message: "Products fetched successfully",
       count: products.length,
       data: products,
     });
@@ -291,6 +411,7 @@ const getProductByCategory: RequestHandler = async (req: Request, res: Response)
   } catch (error) {
     console.error("Error fetching products by category:", error);
     res.status(500).json({ error: "Internal Server Error" });
+    return;
   }
 };
 
@@ -854,7 +975,15 @@ const bulkUploadProduct: RequestHandler = async (req, res): Promise<void> => {
     }
 
     // Validate products using Zod schema
-    const ProductArraySchema = z.array(ProductSchema.omit({ sellerId: true, status: true }));
+    const ProductArraySchema = z.array(
+      ProductSchema.pick({
+        title: true,
+        description: true,
+        price: true,
+        category: true,
+        stock: true,
+      })
+    );
     const validatedBody = ProductArraySchema.safeParse(req.body);
 
     if (!validatedBody.success) {
@@ -889,7 +1018,18 @@ const bulkUploadProduct: RequestHandler = async (req, res): Promise<void> => {
 
     // Insert products in a single transaction
     const addedProducts = await prisma.$transaction(
-      products.map((product) => prisma.product.create({ data: product }))
+      products.map((product) =>
+        prisma.product.create({
+          data: {
+            ...product,
+            title: product.title,
+            description: product.description,
+            price: product.price,
+            category: product.category,
+            seller: { connect: { id: user.id } }, // Ensure seller relation is properly connected
+          },
+        })
+      )
     );
 
     res.status(201).json({

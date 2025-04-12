@@ -134,10 +134,19 @@ export const isSeller = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export const isAdminOrSeller = (req: Request, res: Response, next: NextFunction): void => {
-  if (!req.user || !["ADMIN", "SELLER"].includes((req.user as JwtPayload).role)) {
+  if (!req.user) {
+    res.status(401).json({ message: "Unauthorized: User not authenticated" });
+    return;
+  }
+
+  const user = req.user as JwtPayload;
+
+  // Only admins and sellers can proceed to the controller
+  if (user.role !== "ADMIN" && user.role !== "SELLER") {
     res.status(403).json({ message: "Forbidden: Only admins and sellers can perform this action" });
     return;
   }
+
   next();
 };
 

@@ -30,53 +30,68 @@ const productRoutes = Router();
 
 // productRoutes.
 productRoutes.post(
-  "/products",
+  "/add-products",
   authenticateUser,
   isSeller,
-  validate(ProductSchema.omit({ sellerId: true, status: true })),
+  validate(ProductSchema.omit({ status: true })),
   addProduct
 );
 
-productRoutes.delete("/products/:productId", authenticateUser, validateUUID("productId"), deleteProductById);
+productRoutes.delete(
+  "/delete-products/:productId",
+  authenticateUser,
+  isAdminOrSeller,
+  validateUUID("productId"),
+  deleteProductById
+);
 
 productRoutes.patch(
-  "/products/:productId",
+  "/update-products-by-id/:productId",
   authenticateUser,
+  isAdminOrSeller,
   validateUUID("productId"),
   validate(ProductSchema.partial()),
   updateProductById
 );
 
-productRoutes.get("/products", authenticateUser, validateProductQuery, getAllProducts);
+productRoutes.get("/get-all-products", authenticateUser, isAdminOrSeller, validateProductQuery, getAllProducts);
 
-productRoutes.get("/products/:productId", authenticateUser, validateUUID("productId"), getProductById);
+productRoutes.get("/:productId", authenticateUser, validateUUID("productId"), getProductById);
 
-productRoutes.get("/products/seller/:sellerId", authenticateUser, validateUUID("sellerId"), getProductBySellerId);
+productRoutes.get("/seller/:sellerId", authenticateUser, validateUUID("sellerId"), getProductBySellerId);
 
-productRoutes.get("/products/category", authenticateUser, getProductByCategory); // Uses query param: `/products/category?category=value`
+productRoutes.get("/product/category", authenticateUser, getProductByCategory);
 
-productRoutes.get("/products/price-range", authenticateUser, getProductsByPriceRange); // Uses query param: `/products/price-range?min=10&max=100`
+productRoutes.get("/price-range", authenticateUser, getProductsByPriceRange); // Uses query param: `/products/price-range?min=10&max=100`
 
-productRoutes.get("/products/name", authenticateUser, getProductByName); // Uses query param: `/products/name?name=value`
+productRoutes.get("/name", authenticateUser, getProductByName); // Uses query param: `/products/name?name=value`
 
-productRoutes.get("/products/paginated", authenticateUser, getProductsByPagination);
+productRoutes.get("/paginated", authenticateUser, getProductsByPagination);
 
-productRoutes.get("/products/sorted-by-rating", authenticateUser, productSortByPriceOrRating);
+productRoutes.get("/sorted-by-rating", authenticateUser, productSortByPriceOrRating);
 
-productRoutes.get("/products/discounted", authenticateUser, discountProducts);
+productRoutes.get("/discounted", authenticateUser, discountProducts);
 
-productRoutes.put("/products/verify-all", authenticateUser, isAdmin, verifyAllProducts);
+productRoutes.put("/verify-all", authenticateUser, isAdmin, verifyAllProducts);
 
-productRoutes.get("/products/pending-verification", authenticateUser, isAdmin, getAllProductsLeftForVerification);
+productRoutes.get("/pending-verification", authenticateUser, isAdmin, getAllProductsLeftForVerification);
 
-productRoutes.put("/products/verify/:id", authenticateUser, validateUUID("id"), verifyProductById);
+productRoutes.put("/verify/:id", authenticateUser, validateUUID("id"), verifyProductById);
 
-productRoutes.get("/products/verify/seller/:email", authenticateUser, isAdmin, verifyProductOfSellerEmailByAdmin);
+productRoutes.get("/verify/seller/:email", authenticateUser, isAdmin, verifyProductOfSellerEmailByAdmin);
 
-productRoutes.get("/products/seller/:sellerId/status/:status", authenticateUser, getProductBySellerWithStatus);
+productRoutes.get("/seller/:sellerId/status/:status", authenticateUser, getProductBySellerWithStatus);
 
-productRoutes.post("/products/bulk-upload", authenticateUser, isAdminOrSeller, bulkUploadProduct);
+productRoutes.post("/bulk-upload", authenticateUser, isAdminOrSeller, bulkUploadProduct);
 
-productRoutes.delete("/products/bulk-delete", authenticateUser, isAdminOrSeller, bulkDeleteProducts);
+productRoutes.delete("/bulk-delete", authenticateUser, isAdminOrSeller, bulkDeleteProducts);
 
 export default productRoutes;
+
+// http://localhost:3000/api/products/update-products-by-id/629c5e42-2910-4900-a415-ef3a87a58637
+
+// {
+//   "title": "Updated Product Name",
+//   "price": 29.99,
+//   "stock": 100
+// }
