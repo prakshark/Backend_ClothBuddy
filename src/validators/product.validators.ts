@@ -1,19 +1,7 @@
 import { z } from "zod";
+import { ProductCategory, ProductStatus } from "@prisma/client";
 
-// Define enums manually
-export enum ProductCategory {
-  MENS = "MENS",
-  WOMENS = "WOMENS",
-  KIDS = "KIDS",
-  OTHER = "OTHER",
-}
-
-export enum ProductStatus {
-  PENDING = "PENDING",
-  APPROVED = "APPROVED",
-  REJECTED = "REJECTED",
-}
-
+// Define ProductUses enum
 export enum ProductUses {
   CASUAL = "CASUAL",
   DATES = "DATES",
